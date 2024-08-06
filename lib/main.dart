@@ -14,8 +14,9 @@ class Friend {
   String instaId;
   String meetPlace;
   bool isPinned; //ピンされてるかどうかの属性追加
+  DateTime dateAdded;
 
-  Friend(this.name, this.grade, this.club, this.hobby, this.instaId, this.meetPlace, {this.isPinned = false}); //ピンされているかどうかもフレンドオブジェクトを作ると生成される
+  Friend(this.name, this.grade, this.club, this.hobby, this.instaId, this.meetPlace,  {this.isPinned = false, required this.dateAdded}); //ピンされているかどうかもフレンドオブジェクトを作ると生成される
 
   Map<String, dynamic> toJson() {
     return {
@@ -26,6 +27,7 @@ class Friend {
       'instaId': instaId,
       'meetPlace': meetPlace,
       'isPinned': isPinned, //追加
+      'dateAdded': dateAdded.toIso8601String(),
     };
   }
 
@@ -38,6 +40,7 @@ class Friend {
       json['instaId'],
       json['meetPlace'],
       isPinned: json['isPinned'], //追加
+      dateAdded: DateTime.parse(json['dateAdded']),
     );
   }
 }
@@ -52,6 +55,7 @@ class FriendListApp extends StatelessWidget {
         hintColor: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
@@ -63,6 +67,7 @@ class FriendListPage extends StatefulWidget {
 
 class _FriendListPageState extends State<FriendListPage> {
   List<Friend> friends = [];
+  bool isSortedByNew = true; //デフォルトを新しい順に表示に設定
 
   @override
   void initState() {
@@ -83,23 +88,26 @@ class _FriendListPageState extends State<FriendListPage> {
 
         return AlertDialog(
           title: Text('友達を追加'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              _buildTextField('名前', (value) => name = value),
-              _buildTextField('学年', (value) => grade = value),
-              _buildTextField('部活', (value) => club = value),
-              _buildTextField('趣味', (value) => hobby = value),
-              _buildTextField('インスタID', (value) => instaId = value),
-              _buildTextField('出会った場所', (value) => meetPlace = value),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                _buildTextField('名前', (value) => name = value),
+                _buildTextField('学年', (value) => grade = value),
+                _buildTextField('部活', (value) => club = value),
+                _buildTextField('趣味', (value) => hobby = value),
+                _buildTextField('インスタID', (value) => instaId = value),
+                _buildTextField('出会った場所', (value) => meetPlace = value),
+              ],
+            ),
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () {
                 setState(() {
-                  friends.add(Friend(name, grade, club, hobby, instaId, meetPlace));
+                  friends.add(Friend(name, grade, club, hobby, instaId, meetPlace,dateAdded: DateTime.now()));
                   _saveFriends();
+                  _sortFriends(); //ソート機能のメソッド呼び出し
                 });
                 Navigator.of(context).pop();
               },
@@ -130,22 +138,24 @@ class _FriendListPageState extends State<FriendListPage> {
 
         return AlertDialog(
           title: Text('友達を編集'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              _buildTextField('名前', (value) => name = value, initialValue: name),
-              _buildTextField('学年', (value) => grade = value, initialValue: grade),
-              _buildTextField('部活', (value) => club = value, initialValue: club),
-              _buildTextField('趣味', (value) => hobby = value, initialValue: hobby),
-              _buildTextField('インスタID', (value) => instaId = value, initialValue: instaId),
-              _buildTextField('出会った場所', (value) => meetPlace = value, initialValue: meetPlace),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                _buildTextField('名前', (value) => name = value, initialValue: name),
+                _buildTextField('学年', (value) => grade = value, initialValue: grade),
+                _buildTextField('部活', (value) => club = value, initialValue: club),
+                _buildTextField('趣味', (value) => hobby = value, initialValue: hobby),
+                _buildTextField('インスタID', (value) => instaId = value, initialValue: instaId),
+                _buildTextField('出会った場所', (value) => meetPlace = value, initialValue: meetPlace),
+              ],
+            ),
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () {
                 setState(() {
-                  friends[index] = Friend(name, grade, club, hobby, instaId, meetPlace, isPinned: friends[index].isPinned);
+                  friends[index] = Friend(name, grade, club, hobby, instaId, meetPlace, isPinned: friends[index].isPinned, dateAdded: friends[index].dateAdded);
                   _saveFriends();
                 });
                 Navigator.of(context).pop();
@@ -168,15 +178,7 @@ class _FriendListPageState extends State<FriendListPage> {
   void _togglePinFriend(int index) {
     setState(() {
       friends[index].isPinned = !friends[index].isPinned;
-      friends.sort((a, b) {
-        if (a.isPinned && !b.isPinned) {
-          return -1;
-        } else if (!a.isPinned && b.isPinned) {
-          return 1;
-        } else {
-          return 0;
-        }
-      });
+      _sortFriends(); //ソート機能のメソッドを呼び出し
       _saveFriends();
     });
   }
@@ -187,6 +189,7 @@ class _FriendListPageState extends State<FriendListPage> {
       _saveFriends();
     });
   }
+
 
   TextField _buildTextField(String label, Function(String) onChanged, {String initialValue = ''}) {
     return TextField(
@@ -214,17 +217,36 @@ class _FriendListPageState extends State<FriendListPage> {
     if (friendList != null) {
       setState(() {
         friends = friendList.map((item) => Friend.fromJson(json.decode(item))).toList();
-        friends.sort((a, b) {
-          if (a.isPinned && !b.isPinned) {
-            return -1;
-          } else if (!a.isPinned && b.isPinned) {
-            return 1;
-          } else {
-            return 0;
-          }
+        _sortFriends();
         });
-      });
+      }
     }
+
+  //友達リストを並べ替えるメソッド
+  void _sortFriends() {
+    setState(() {
+      // friendsリストを並べ替える
+      friends.sort((a, b) {
+        //ピン留めされた友達をリストの先頭に移動
+        if (a.isPinned && !b.isPinned) return -1; //aがbの前に来るようにする
+        if (!a.isPinned && b.isPinned) return 1; //bがaの前に来るようにする
+
+        //ピン留めされていない友達は、指定された順序(新しい順または古い順)で並べ替える
+        if (isSortedByNew) {
+          return b.dateAdded.compareTo(a.dateAdded); // 新しい順
+        } else {
+          return a.dateAdded.compareTo(b.dateAdded); // 古い順
+        }
+      });
+    });
+  }
+
+  // 並べ替え順序を切り替えるメソッド
+  void _toggleSortOrder() {
+    setState(() {
+      isSortedByNew = !isSortedByNew; // 現在の並べ替え順序を反転
+      _sortFriends(); //友達リストを新しい順または古い順に再度並べ替える
+    });
   }
 
   @override
@@ -232,7 +254,16 @@ class _FriendListPageState extends State<FriendListPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('友達リスト'),
-        backgroundColor: Colors.lightBlue[50],  // AppBarの背景色を水色に設定
+        backgroundColor: Colors.lightBlue[50],
+        actions: [
+          TextButton(
+            onPressed: _toggleSortOrder,
+            child: Text(
+              isSortedByNew ? '新しい順' : '古い順',
+              style: TextStyle(color: Colors.blue),
+            ),
+          ),
+        ],
       ),
       backgroundColor: Colors.lightBlue[50],  // Scaffoldの背景色を水色に設定
       body: ListView.builder(
@@ -240,6 +271,8 @@ class _FriendListPageState extends State<FriendListPage> {
         itemBuilder: (context, index) {
           return ListTile(
             title: Text(friends[index].name),
+            //友達の名前の下に追加日時表示
+            subtitle: Text(friends[index].dateAdded.toString()),
             onTap: () => _editFriend(index),
             trailing: Wrap(
               spacing: 12,
